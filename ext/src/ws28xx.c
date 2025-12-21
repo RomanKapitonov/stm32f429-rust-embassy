@@ -304,7 +304,6 @@ void DMA2_Stream2_Handler(void)
 
 void TIM1_UP_TIM10_Handler(void)
 {
-    // DBG_PB9_TOGGLE();
     if (TIM1->SR & TIM_SR_UIF) { // Update interrupt flag
         TIM1->SR &= ~TIM_SR_UIF; // Clear update interrupt flag
         
@@ -315,7 +314,6 @@ void TIM1_UP_TIM10_Handler(void)
         // Re-enable PWM outputs for the next refresh call
         TIM1->CCER |= (TIM_CCER_CC1E | TIM_CCER_CC2E); // Enable channel 1 and 2 outputs
     }
-    // DBG_PB9_TOGGLE();
 }
 
 void ws2812_refresh(const struct led_channel_info *channels, GPIO_TypeDef *gpio_bank)
@@ -385,7 +383,7 @@ void ws2812_refresh(const struct led_channel_info *channels, GPIO_TypeDef *gpio_
 
     // Set period and start timer
     TIM1->ARR = WS2812_TIMER_PERIOD; // Auto-Reload Register to define timer period
-    TIM1->CNT = TIM1->ARR - 10; // Start timer just before overflow to trigger DMA immediately
+    TIM1->CNT = TIM1->ARR; // Start timer (potentially do ARR-10 just before the overflow to trigger DMA immediately???)
     TIM1->CR1 |= TIM_CR1_CEN; // Start the timer by setting Counter Enable bit
 
     DBG_PB9_TOGGLE();
