@@ -1,0 +1,23 @@
+[package]
+edition = "2024"
+name = "stm32f429zi-example"
+version = "0.0.1"
+
+[dependencies]
+embassy-stm32 = { version = "0.4.0", features = ["defmt", "time-driver-tim5", "stm32f429zi", "memory-x", "exti"] }
+embassy-executor = { version = "0.9.1", features = ["arch-cortex-m", "executor-thread", "defmt"] }
+embassy-time = { version = "0.5.0", features = ["defmt", "defmt-timestamp-uptime", "tick-hz-32_768"] }
+
+defmt = "1.0.1"
+defmt-rtt = "1.0.0"
+cortex-m = { version = "0.7.7", features = ["inline-asm", "critical-section-single-core"] }
+cortex-m-rt = "0.7.5"
+embedded-hal = "1.0.0"
+panic-probe = { version = "1.0.0", features = ["print-defmt"] }
+cty = "0.2.2"
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = "z"
+debug = 2
