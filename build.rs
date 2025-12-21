@@ -5,7 +5,7 @@ use std::process::Command;
 fn main() {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let ext_dir = manifest_dir.join("ext");
-    let build_dir = ext_dir.join("build");
+    let build_dir = manifest_dir.join("target/ext/ws28xx");
 
     let status = Command::new("make")
         .arg("-C")
