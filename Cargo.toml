@@ -15,6 +15,7 @@ cortex-m-rt = "0.7.5"
 embedded-hal = "1.0.0"
 panic-probe = { version = "1.0.0", features = ["print-defmt"] }
 cty = "0.2.2"
+libm = "0.2.15"
 
 [profile.release]
 lto = true
