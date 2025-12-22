@@ -21,4 +21,12 @@ impl<const N: usize> LedChannel<N> {
     pub fn fill(&mut self, r: u8, g: u8, b: u8) {
         self.buffer.fill(Rgb::new(r, g, b));
     }
+
+    pub fn buffer_mut(&mut self) -> &mut RgbBuffer<N> {
+        &mut self.buffer
+    }
+
+    pub fn as_mut_slice(&mut self) -> &mut [Rgb] {
+        self.buffer.as_mut_slice()
+    }
 }

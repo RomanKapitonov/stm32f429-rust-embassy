@@ -3,15 +3,17 @@
 
 use defmt::*;
 use embassy_executor::Spawner;
-use embassy_time::Timer;
+use embassy_time::{Instant, Timer};
 use {defmt_rtt as _, panic_probe as _};
 
 mod channel;
+mod effects;
 mod ffi;
 mod rgb;
 
 use channel::LedChannel;
 use core::cell::UnsafeCell;
+use effects::{Generator, Pulse, Static};
 use embassy_stm32::Peri;
 use embassy_stm32::bind_interrupts;
 use embassy_stm32::gpio::{AnyPin, Level, Output, Speed};
@@ -47,13 +49,12 @@ pub unsafe extern "C" fn DMA2_STREAM2_OVERRIDE() {
 }
 
 bind_interrupts!(struct Irqs {
-    // DMA2_STREAM2 => Dma2Stream2Handler;
+    // DMA2_STREAM2 => Dma2Stream2Handler; // SEE build.rs FOR OVERRIDE
     TIM1_UP_TIM10 => Tim1UpTim10Handler;
 });
 
-const LED_COUNT: usize = 100;
+const LED_COUNT: usize = 400;
 
-// Wrapper for safe static mutable access
 struct StaticChannel<const N: usize>(UnsafeCell<LedChannel<N>>);
 
 unsafe impl<const N: usize> Sync for StaticChannel<N> {}
@@ -71,54 +72,55 @@ impl<const N: usize> StaticChannel<N> {
 // Static buffers for channels
 static CHANNEL_0: StaticChannel<LED_COUNT> = StaticChannel::new(0);
 
+mod init;
+use init::init_clock;
+
 #[embassy_executor::main]
 async fn main(_spawner: Spawner) {
     let mut device_config = embassy_stm32::Config::default();
-    {
-        use embassy_stm32::rcc::*;
-        use embassy_stm32::time::*;
-        device_config.enable_debug_during_sleep = true;
-        device_config.rcc.hse = Some(Hse {
-            freq: mhz(8),
-            mode: HseMode::Oscillator,
-        });
-        device_config.rcc.pll_src = PllSource::HSE;
-        device_config.rcc.pll = Some(Pll {
-            prediv: PllPreDiv::DIV4,
-            mul: PllMul::MUL168,
-            divp: Some(PllPDiv::DIV2),
-            divq: Some(PllQDiv::DIV7),
-            divr: None,
-        });
-        device_config.rcc.sys = Sysclk::PLL1_P; // 168 MHz
-        device_config.rcc.ahb_pre = AHBPrescaler::DIV1; // 168 MHz
-        device_config.rcc.apb1_pre = APBPrescaler::DIV4; // 42 MHz, Timer clock 84 MHz
-        device_config.rcc.apb2_pre = APBPrescaler::DIV2; // 84 MHz, Timer clock 168 MHz
-    }
+    init_clock(&mut device_config);
+
     let peripherals = embassy_stm32::init(device_config);
 
     unsafe {
         ws2812_init();
-        info!("WS2812 initialized");
     }
 
     _spawner.spawn(blink(peripherals.PG13.into())).unwrap();
     _spawner.spawn(blink(peripherals.PG14.into())).unwrap();
-
-    let mut counter: u8 = 0;
-    let mut ticks: u32 = 0;
+    _spawner.spawn(led_effects()).unwrap();
 
     loop {
-        if ticks % 100 == 0 {
-            match counter % 2 {
-                0 => CHANNEL_0.get().fill(0, 0, 255),
-                1 => CHANNEL_0.get().fill(255, 0, 0),
-                _ => {}
-            }
-            counter = counter.wrapping_add(1);
+        Timer::after_secs(1).await;
+    } // Keep alive
+}
+
+#[embassy_executor::task]
+async fn led_effects() {
+    info!("Starting LED effects task");
+
+    let mut effect = Pulse {
+        start_time: 0,
+        duration: 2000,
+        position: 30,
+        spread_speed: 0.02,
+        width: Static(3.0),
+        intensity: Static(1.0),
+        hue: Static(240.0),
+        saturation: Static(1.0),
+    };
+
+    loop {
+        let now = Instant::now().as_millis();
+
+        if !effect.is_alive(now) {
+            effect.start_time = now; // restart
         }
 
-        // Render every 10ms
+        CHANNEL_0.get().fill(0, 0, 0);
+        effect.generate(CHANNEL_0.get().as_mut_slice(), now);
+
+        // Render to LEDs
         let channels = [
             CHANNEL_0.get().channel_info(),
             LedChannelInfo::disabled(1),
@@ -134,8 +136,7 @@ async fn main(_spawner: Spawner) {
             ws2812_refresh(channels.as_ptr(), core::ptr::null_mut());
         }
 
-        ticks = ticks.wrapping_add(1);
-        Timer::after_millis(10).await;
+        Timer::after_millis(25).await;
     }
 }
 
