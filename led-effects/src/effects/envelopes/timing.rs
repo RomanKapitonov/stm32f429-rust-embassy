@@ -1,12 +1,12 @@
 use core::f32::consts::PI;
 
-use crate::effects::Envelope;
+use crate::effects::core::traits::Envelope;
 
 pub struct Constant;
 
 pub struct Fade {
     pub start_time: u64,
-    pub period: u64,
+    pub duration: u64,
     pub inverted: bool,
 }
 
@@ -22,7 +22,7 @@ pub struct Sine {
 
 pub struct Square {
     pub start_time: u64,
-    pub period: u64,     // Full period (on + off)
+    pub period: u64,     // full period in ms
     pub duty_cycle: f32, // PWM duty cycle (0.0 to 1.0)
 }
 
@@ -41,19 +41,22 @@ pub struct ADSR {
 }
 
 impl Envelope for Constant {
+    #[inline(always)]
     fn sample(&self, _now: u64) -> f32 {
         1.0
     }
 
+    #[inline(always)]
     fn is_alive(&self, _now: u64) -> bool {
         true
     }
 }
 
 impl Envelope for Fade {
+    #[inline(always)]
     fn sample(&self, now: u64) -> f32 {
         let elapsed = now.saturating_sub(self.start_time);
-        let progress = (elapsed as f32 / self.period as f32).min(1.0);
+        let progress = (elapsed as f32 / self.duration as f32).min(1.0);
 
         if self.inverted {
             1.0 - progress
@@ -62,12 +65,14 @@ impl Envelope for Fade {
         }
     }
 
+    #[inline(always)]
     fn is_alive(&self, now: u64) -> bool {
-        now < self.start_time + self.period
+        now < self.start_time + self.duration
     }
 }
 
 impl Envelope for Triangle {
+    #[inline(always)]
     fn sample(&self, now: u64) -> f32 {
         let elapsed = now.saturating_sub(self.start_time);
         let phase = (elapsed % self.period) as f32 / self.period as f32;
@@ -78,48 +83,56 @@ impl Envelope for Triangle {
         }
     }
 
+    #[inline(always)]
     fn is_alive(&self, _now: u64) -> bool {
         true
     }
 }
 
 impl Envelope for Sine {
+    #[inline(always)]
     fn sample(&self, now: u64) -> f32 {
         let elapsed = now.saturating_sub(self.start_time);
         let phase = (elapsed as f32 / self.period as f32) * 2.0 * PI;
         (libm::sinf(phase) + 1.0) * 0.5 // [-1, 1] -> [0, 1]
     }
 
+    #[inline(always)]
     fn is_alive(&self, _now: u64) -> bool {
         true
     }
 }
 
 impl Envelope for Square {
+    #[inline(always)]
     fn sample(&self, now: u64) -> f32 {
         let elapsed = now.saturating_sub(self.start_time);
         let phase = (elapsed % self.period) as f32 / self.period as f32;
         if phase < self.duty_cycle { 1.0 } else { 0.0 }
     }
 
+    #[inline(always)]
     fn is_alive(&self, _now: u64) -> bool {
         true
     }
 }
 
 impl Envelope for Sawtooth {
+    #[inline(always)]
     fn sample(&self, now: u64) -> f32 {
         let elapsed = now.saturating_sub(self.start_time);
         let phase = (elapsed % self.period) as f32 / self.period as f32;
         phase // Linear ramp from 0 to 1
     }
 
+    #[inline(always)]
     fn is_alive(&self, _now: u64) -> bool {
         true
     }
 }
 
 impl Envelope for ADSR {
+    #[inline(always)]
     fn sample(&self, now: u64) -> f32 {
         let elapsed = now.saturating_sub(self.start_time);
 
@@ -141,6 +154,7 @@ impl Envelope for ADSR {
         }
     }
 
+    #[inline(always)]
     fn is_alive(&self, now: u64) -> bool {
         let total = self.attack + self.decay + self.sustain_duration + self.release;
         now < self.start_time + total

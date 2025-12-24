@@ -1,19 +1,20 @@
 #[repr(C)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct Rgb {
+pub struct Pixel {
     pub r: u8,
     pub g: u8,
     pub b: u8,
 }
 
-impl Rgb {
-    #[inline]
+impl Pixel {
+    #[inline(always)]
     pub const fn new(r: u8, g: u8, b: u8) -> Self {
         Self { r, g, b }
     }
 
     pub const BLACK: Self = Self::new(0, 0, 0);
 
+    #[inline(always)]
     pub fn scale(&self, f: f32) -> Self {
         Self {
             r: (self.r as f32 * f).min(255.0) as u8,
@@ -22,6 +23,7 @@ impl Rgb {
         }
     }
 
+    #[inline(always)]
     pub fn add(&self, other: Self) -> Self {
         Self {
             r: self.r.saturating_add(other.r),
@@ -30,6 +32,7 @@ impl Rgb {
         }
     }
 
+    #[inline(always)]
     pub fn from_hsv(h: f32, s: f32, v: f32) -> Self {
         let c = v * s;
         let h_prime = h / 60.0;
@@ -59,12 +62,10 @@ impl Rgb {
 
     #[inline(always)]
     pub fn adjust_saturation(&self, factor: f32) -> Self {
-        // Convert to HSV, adjust saturation, convert back
         let (h, s, v) = self.to_hsv();
         Self::from_hsv(h, (s * factor).min(1.0), v)
     }
 
-    /// Shift hue by degrees
     #[inline(always)]
     pub fn shift_hue(&self, degrees: f32) -> Self {
         let (h, s, v) = self.to_hsv();
@@ -81,7 +82,6 @@ impl Rgb {
         let min = r.min(g).min(b);
         let delta = max - min;
 
-        // Hue
         let h = if delta == 0.0 {
             0.0
         } else if max == r {
@@ -92,10 +92,7 @@ impl Rgb {
             60.0 * (((r - g) / delta) + 4.0)
         };
 
-        // Saturation
         let s = if max == 0.0 { 0.0 } else { delta / max };
-
-        // Value
         let v = max;
 
         ((h + 360.0) % 360.0, s, v)
@@ -126,45 +123,4 @@ impl Rgb {
     }
 }
 
-const _: () = assert!(core::mem::size_of::<Rgb>() == 3);
-
-#[repr(transparent)]
-pub struct RgbBuffer<const N: usize> {
-    leds: [Rgb; N],
-}
-
-impl<const N: usize> RgbBuffer<N> {
-    #[inline]
-    pub const fn new() -> Self {
-        Self {
-            leds: [Rgb::BLACK; N],
-        }
-    }
-
-    #[inline]
-    pub fn as_bytes_ptr(&self) -> *const u8 {
-        self.leds.as_ptr() as *const u8
-    }
-
-    #[inline]
-    pub fn fill(&mut self, color: Rgb) {
-        self.leds.fill(color);
-    }
-
-    pub fn as_mut_slice(&mut self) -> &mut [Rgb] {
-        &mut self.leds
-    }
-}
-
-impl<const N: usize> core::ops::Index<usize> for RgbBuffer<N> {
-    type Output = Rgb;
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.leds[index]
-    }
-}
-
-impl<const N: usize> core::ops::IndexMut<usize> for RgbBuffer<N> {
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        &mut self.leds[index]
-    }
-}
+const _: () = assert!(core::mem::size_of::<Pixel>() == 3);

@@ -1,15 +1,4 @@
-pub trait HueParameter {
-    fn sample(&self, now: u64) -> f32;
-}
-
-pub struct StaticHue {
-    pub hue: f32, // 0-360 degrees
-}
-
-pub struct RotatingHue {
-    pub start_time: u64,
-    pub degrees_per_ms: f32,
-}
+use crate::effects::core::traits::HueParameter;
 
 pub struct HueOscillate {
     pub start_time: u64,
@@ -17,21 +6,8 @@ pub struct HueOscillate {
     pub hue1: f32,
     pub hue2: f32,
 }
-
-impl HueParameter for StaticHue {
-    fn sample(&self, _now: u64) -> f32 {
-        self.hue % 360.0
-    }
-}
-
-impl HueParameter for RotatingHue {
-    fn sample(&self, now: u64) -> f32 {
-        let elapsed = now.saturating_sub(self.start_time) as f32;
-        (elapsed * self.degrees_per_ms) % 360.0
-    }
-}
-
 impl HueParameter for HueOscillate {
+    #[inline(always)]
     fn sample(&self, now: u64) -> f32 {
         let elapsed = now.saturating_sub(self.start_time);
         let phase = (elapsed % self.period) as f32 / self.period as f32;

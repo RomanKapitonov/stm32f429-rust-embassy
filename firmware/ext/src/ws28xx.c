@@ -316,7 +316,7 @@ void TIM1_UP_TIM10_Handler(void)
     }
 }
 
-void ws2812_refresh(const struct led_channel_info *channels, GPIO_TypeDef *gpio_bank)
+void ws2812_refresh(const struct led_channel_info *channels)
 {
     DBG_PB9_TOGGLE();
     TIM1->EGR |= TIM_EGR_UG; // Generate update event to load registers
