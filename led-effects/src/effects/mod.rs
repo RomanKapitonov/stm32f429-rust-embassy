@@ -37,7 +37,6 @@ pub use envelopes::{
     // Utilities
     Pulse as EnvelopePulse,
     Sawtooth,
-    Scale,
     Sine,
     Square,
     Sum,

@@ -5,38 +5,33 @@ use crate::effects::core::{
 
 pub struct Brightness<Factor>
 where
-    Factor: Parameter<f32>,
+    Factor: Parameter<u8>,
 {
-    pub factor: Factor,
+    pub factor: Factor, // 0-255 (where 255 = 100% brightness)
 }
 
 pub struct Saturation<Factor>
 where
-    Factor: Parameter<f32>,
+    Factor: Parameter<u8>,
 {
-    pub factor: Factor, // 0.0 = grayscale, 1.0 = original, >1.0 = oversaturated
+    pub factor: Factor, // 0-255 (where 0 = grayscale, 255 = full saturation)
 }
 
 pub struct HueShift<Amount>
 where
-    Amount: Parameter<f32>,
+    Amount: Parameter<u8>,
 {
-    pub amount: Amount, // Degrees to shift (0-360)
+    pub amount: Amount, // 0-255 (wraps around hue wheel)
 }
 
-pub struct GammaCorrection<Gamma>
-where
-    Gamma: Parameter<f32>,
-{
-    pub gamma: Gamma, // Typical values: 2.2 for displays, 1.0 = linear
-}
+pub struct GammaCorrection; // Fixed gamma 2.2 correction
 
 impl<Factor> Modifier for Brightness<Factor>
 where
-    Factor: Parameter<f32>,
+    Factor: Parameter<u8>,
 {
     #[inline(always)]
-    fn modify(&mut self, buffer: &mut [Pixel], now: u64) {
+    fn modify(&mut self, buffer: &mut [Pixel], now: u32) {
         let factor = self.factor.sample(now);
         for pixel in buffer.iter_mut() {
             *pixel = pixel.scale(factor);
@@ -46,10 +41,10 @@ where
 
 impl<Factor> Modifier for Saturation<Factor>
 where
-    Factor: Parameter<f32>,
+    Factor: Parameter<u8>,
 {
     #[inline(always)]
-    fn modify(&mut self, buffer: &mut [Pixel], now: u64) {
+    fn modify(&mut self, buffer: &mut [Pixel], now: u32) {
         let factor = self.factor.sample(now);
         for pixel in buffer.iter_mut() {
             *pixel = pixel.adjust_saturation(factor);
@@ -59,10 +54,10 @@ where
 
 impl<Amount> Modifier for HueShift<Amount>
 where
-    Amount: Parameter<f32>,
+    Amount: Parameter<u8>,
 {
     #[inline(always)]
-    fn modify(&mut self, buffer: &mut [Pixel], now: u64) {
+    fn modify(&mut self, buffer: &mut [Pixel], now: u32) {
         let shift = self.amount.sample(now);
         for pixel in buffer.iter_mut() {
             *pixel = pixel.shift_hue(shift);
@@ -70,15 +65,11 @@ where
     }
 }
 
-impl<Gamma> Modifier for GammaCorrection<Gamma>
-where
-    Gamma: Parameter<f32>,
-{
+impl Modifier for GammaCorrection {
     #[inline(always)]
-    fn modify(&mut self, buffer: &mut [Pixel], now: u64) {
-        let gamma = self.gamma.sample(now);
+    fn modify(&mut self, buffer: &mut [Pixel], _now: u32) {
         for pixel in buffer.iter_mut() {
-            *pixel = pixel.gamma_correct(gamma);
+            *pixel = pixel.gamma_correct();
         }
     }
 }

@@ -3,7 +3,7 @@ pub mod easing;
 pub mod timing;
 pub mod utilities;
 
-pub use combinators::{Clamp, Invert, Max, Min, Product, Scale, Sum};
+pub use combinators::{Clamp, Invert, Max, Min, Product, Sum};
 pub use easing::{
     BackIn, BackInOut, BackOut, BounceIn, BounceInOut, BounceOut, EaseInCubic, EaseInExpo,
     EaseInOutCubic, EaseInOutExpo, EaseInOutQuad, EaseInOutQuart, EaseInQuad, EaseInQuart,

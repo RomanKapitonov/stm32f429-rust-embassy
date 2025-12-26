@@ -86,7 +86,7 @@ async fn led_effects(debug_pin: Peri<'static, AnyPin>) {
     let mut pg13_debug: Output<'_> = Output::new(debug_pin, Level::High, Speed::Low);
     let start_time = Instant::now().as_millis();
     let mut effect_start_time = Instant::now(); // Track the start of the current loop
-    let effect_duration_ms: u64 = 5000; // Must match your EffectBuilder duration
+    let effect_duration_ms: u32 = 5000; // Must match your EffectBuilder duration
 
     // Create the effect ONCE before the loop
     use led_effects::Chase;
@@ -99,60 +99,62 @@ async fn led_effects(debug_pin: Peri<'static, AnyPin>) {
         start_time: 0,
         duration: 5000,
 
-        position: DynamicParam {
-            envelope: VelocityIntegral {
+        position: DynamicParam::<_, u8>::new(
+            VelocityIntegral {
                 start_time: 0,
                 velocity_envelope: Fade {
                     start_time: 0,
                     duration: 5000,
                     inverted: true,
                 },
-                initial_position: 0.0,
+                initial_position: 0,
+                dt_ms: 16,
+                velocity_scale: 20, // Adjust for desired speed
             },
-            min: 0.0,
-            max: NUM_LEDS as f32,
-        },
+            0.0,
+            NUM_LEDS as f32,
+        ),
 
-        width: DynamicParam {
-            envelope: Fade {
+        width: DynamicParam::<_, u8>::new(
+            Fade {
                 start_time: 0,
                 duration: 5000,
                 inverted: false,
             },
-            min: 2.0,
-            max: 8.0,
-        },
+            2.0,
+            8.0,
+        ),
 
-        intensity: DynamicParam {
-            envelope: Fade {
+        intensity: DynamicParam::<_, u8>::new(
+            Fade {
                 start_time: 0,
                 duration: 5000,
                 inverted: true,
             },
-            min: 0.0,
-            max: 1.0,
-        },
+            0.0,
+            255.0,
+        ),
 
         hue: RotatingHue {
             start_time: 0,
             degrees_per_ms: 0.05,
         },
 
-        saturation: StaticParam(1.0),
+        saturation: StaticParam(255),
     })
     .with_modifier(Trail {
-        decay_rate: DynamicParam {
-            envelope: Fade {
+        decay_rate: DynamicParam::<_, u8>::new(
+            Fade {
                 start_time: 0,
                 duration: 5000,
                 inverted: false,
             },
-            min: 0.80,
-            max: 0.95,
-        },
+            204.0, // 0.80 * 255
+            242.0, // 0.95 * 255
+        ),
     })
     .with_modifier(Blur {
-        strength: StaticParam(0.2),
+        strength: StaticParam(51), // 0.2 * 255
     })
     .build();
 
@@ -160,7 +162,7 @@ async fn led_effects(debug_pin: Peri<'static, AnyPin>) {
 
     loop {
         let now_instant = Instant::now();
-        let mut elapsed = now_instant.duration_since(effect_start_time).as_millis();
+        let mut elapsed = now_instant.duration_since(effect_start_time).as_millis() as u32;
 
         if elapsed >= effect_duration_ms {
             effect_start_time = now_instant;

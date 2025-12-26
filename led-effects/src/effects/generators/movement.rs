@@ -1,5 +1,3 @@
-// Movement-based generators that create dynamic spatial patterns
-
 use crate::effects::core::{
     pixel::Pixel,
     traits::{Generator, HueParameter, Parameter},
@@ -7,14 +5,14 @@ use crate::effects::core::{
 
 pub struct Chase<Pos, Width, Intensity, Hue, Sat>
 where
-    Pos: Parameter<f32>,
-    Width: Parameter<f32>,
-    Intensity: Parameter<f32>,
+    Pos: Parameter<u16>,
+    Width: Parameter<u8>,
+    Intensity: Parameter<u8>,
     Hue: HueParameter,
-    Sat: Parameter<f32>,
+    Sat: Parameter<u8>,
 {
-    pub start_time: u64,
-    pub duration: u64,
+    pub start_time: u32,
+    pub duration: u32,
     pub position: Pos,
     pub width: Width,
     pub intensity: Intensity,
@@ -24,14 +22,14 @@ where
 
 impl<Pos, Width, Intensity, Hue, Sat> Generator for Chase<Pos, Width, Intensity, Hue, Sat>
 where
-    Pos: Parameter<f32>,
-    Width: Parameter<f32>,
-    Intensity: Parameter<f32>,
+    Pos: Parameter<u16>,
+    Width: Parameter<u8>,
+    Intensity: Parameter<u8>,
     Hue: HueParameter,
-    Sat: Parameter<f32>,
+    Sat: Parameter<u8>,
 {
     #[inline(always)]
-    fn generate(&mut self, buffer: &mut [Pixel], now: u64) {
+    fn generate(&mut self, buffer: &mut [Pixel], now: u32) {
         let pos = self.position.sample(now);
         let width = self.width.sample(now);
         let intensity = self.intensity.sample(now);
@@ -44,35 +42,41 @@ where
         for i in -width_pixels..=width_pixels {
             let idx = center + i;
             if idx >= 0 && (idx as usize) < buffer.len() {
-                let dist = i.abs() as f32;
-                let falloff = (1.0 - (dist / width)).max(0.0);
-                let color = Pixel::from_hsv(hue, saturation, intensity * falloff);
+                let dist = i.abs() as u8;
+
+                // Calculate falloff: 255 at center, 0 at edges
+                let falloff_u8 = if dist >= width {
+                    0
+                } else {
+                    (((width - dist) as u16 * 255) / width as u16) as u8
+                };
+
+                // Scale intensity by falloff
+                let scaled_intensity = ((intensity as u16 * falloff_u8 as u16) / 255) as u8;
+
+                let color = Pixel::from_hsv(hue, saturation, scaled_intensity);
                 buffer[idx as usize] = buffer[idx as usize].add(color);
             }
         }
     }
 
     #[inline(always)]
-    fn is_alive(&self, now: u64) -> bool {
+    fn is_alive(&self, now: u32) -> bool {
         now < self.start_time + self.duration
     }
 }
 
-/// Pulse generator that creates expanding waves from a center point
-///
-/// Creates symmetric pulses that expand outward from a fixed position,
-/// useful for creating ripple or pulse effects.
 pub struct Pulse<Width, Intensity, Hue, Sat>
 where
-    Width: Parameter<f32>,
-    Intensity: Parameter<f32>,
+    Width: Parameter<u8>,
+    Intensity: Parameter<u8>,
     Hue: HueParameter,
-    Sat: Parameter<f32>,
+    Sat: Parameter<u8>,
 {
-    pub start_time: u64,
-    pub duration: u64,
+    pub start_time: u32,
+    pub duration: u32,
     pub position: usize,
-    pub spread_speed: f32,
+    pub spread_speed: f32, // Pixels per millisecond (keep f32 for smooth speed)
     pub width: Width,
     pub intensity: Intensity,
     pub hue: Hue,
@@ -81,19 +85,19 @@ where
 
 impl<Width, Intensity, Hue, Sat> Generator for Pulse<Width, Intensity, Hue, Sat>
 where
-    Width: Parameter<f32>,
-    Intensity: Parameter<f32>,
+    Width: Parameter<u8>,
+    Intensity: Parameter<u8>,
     Hue: HueParameter,
-    Sat: Parameter<f32>,
+    Sat: Parameter<u8>,
 {
     #[inline(always)]
-    fn generate(&mut self, buffer: &mut [Pixel], now: u64) {
-        let elapsed = now.saturating_sub(self.start_time) as f32;
+    fn generate(&mut self, buffer: &mut [Pixel], now: u32) {
+        let elapsed = now.saturating_sub(self.start_time);
         let width = self.width.sample(now);
         let intensity = self.intensity.sample(now);
         let hue = self.hue.sample(now);
         let saturation = self.saturation.sample(now);
-        let distance = (elapsed * self.spread_speed) as isize;
+        let distance = (elapsed as f32 * self.spread_speed) as isize;
 
         // Create two expanding pulses from the center position
         for edge_offset in [-distance, distance] {
@@ -101,10 +105,19 @@ where
             for i in -width_pixels..=width_pixels {
                 let idx = self.position as isize + edge_offset + i;
                 if idx >= 0 && (idx as usize) < buffer.len() {
-                    let dist_from_edge = i.abs() as f32;
-                    let falloff = (1.0 - (dist_from_edge / width)).max(0.0);
+                    let dist_from_edge = i.abs() as u8;
 
-                    let color = Pixel::from_hsv(hue, saturation, intensity * falloff);
+                    // Calculate falloff: 255 at center, 0 at edges
+                    let falloff_u8 = if dist_from_edge >= width {
+                        0
+                    } else {
+                        (((width - dist_from_edge) as u16 * 255) / width as u16) as u8
+                    };
+
+                    // Scale intensity by falloff
+                    let scaled_intensity = ((intensity as u16 * falloff_u8 as u16) / 255) as u8;
+
+                    let color = Pixel::from_hsv(hue, saturation, scaled_intensity);
                     buffer[idx as usize] = buffer[idx as usize].add(color);
                 }
             }
@@ -112,7 +125,7 @@ where
     }
 
     #[inline(always)]
-    fn is_alive(&self, now: u64) -> bool {
+    fn is_alive(&self, now: u32) -> bool {
         now < self.start_time + self.duration
     }
 }

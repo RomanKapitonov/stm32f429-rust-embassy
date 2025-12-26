@@ -9,6 +9,7 @@ repository = "https://github.com/yourusername/led-effects"
 
 [dependencies]
 libm = "0.2.15"
+led-effects-macros = { path = "../led-effects-macros" }
 
 [features]
 default = []

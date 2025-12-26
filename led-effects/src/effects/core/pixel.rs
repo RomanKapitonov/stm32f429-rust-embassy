@@ -1,3 +1,5 @@
+use led_effects_macros::{generate_gamma_lut, generate_hsv_lut};
+
 #[repr(C)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Pixel {
@@ -14,12 +16,13 @@ impl Pixel {
 
     pub const BLACK: Self = Self::new(0, 0, 0);
 
+    /// Scale by factor (0-255)
     #[inline(always)]
-    pub fn scale(&self, f: f32) -> Self {
+    pub fn scale(&self, factor: u8) -> Self {
         Self {
-            r: (self.r as f32 * f).min(255.0) as u8,
-            g: (self.g as f32 * f).min(255.0) as u8,
-            b: (self.b as f32 * f).min(255.0) as u8,
+            r: ((self.r as u16 * factor as u16) / 255) as u8,
+            g: ((self.g as u16 * factor as u16) / 255) as u8,
+            b: ((self.b as u16 * factor as u16) / 255) as u8,
         }
     }
 
@@ -32,95 +35,106 @@ impl Pixel {
         }
     }
 
+    /// Create pixel from HSV (hue: 0-255, saturation: 0-255, value: 0-255)
     #[inline(always)]
-    pub fn from_hsv(h: f32, s: f32, v: f32) -> Self {
-        let c = v * s;
-        let h_prime = h / 60.0;
-        let x = c * (1.0 - ((h_prime % 2.0) - 1.0).abs());
-        let m = v - c;
+    pub fn from_hsv(hue: u8, saturation: u8, value: u8) -> Self {
+        HSV_LUT.get(hue, saturation, value)
+    }
 
-        let (r, g, b) = if h_prime < 1.0 {
-            (c, x, 0.0)
-        } else if h_prime < 2.0 {
-            (x, c, 0.0)
-        } else if h_prime < 3.0 {
-            (0.0, c, x)
-        } else if h_prime < 4.0 {
-            (0.0, x, c)
-        } else if h_prime < 5.0 {
-            (x, 0.0, c)
-        } else {
-            (c, 0.0, x)
-        };
-
+    /// Linear interpolation (t: 0-255)
+    #[inline(always)]
+    pub fn lerp(&self, other: &Self, t: u8) -> Self {
         Self {
-            r: ((r + m) * 255.0) as u8,
-            g: ((g + m) * 255.0) as u8,
-            b: ((b + m) * 255.0) as u8,
+            r: self.r + (((other.r as i16 - self.r as i16) * t as i16) / 255) as u8,
+            g: self.g + (((other.g as i16 - self.g as i16) * t as i16) / 255) as u8,
+            b: self.b + (((other.b as i16 - self.b as i16) * t as i16) / 255) as u8,
         }
     }
 
+    /// Gamma 2.2 correction (standard for LEDs)
     #[inline(always)]
-    pub fn adjust_saturation(&self, factor: f32) -> Self {
-        let (h, s, v) = self.to_hsv();
-        Self::from_hsv(h, (s * factor).min(1.0), v)
+    pub fn gamma_correct(&self) -> Self {
+        Self {
+            r: GAMMA_22_LUT[self.r as usize],
+            g: GAMMA_22_LUT[self.g as usize],
+            b: GAMMA_22_LUT[self.b as usize],
+        }
     }
 
+    /// Adjust saturation (factor: 0-255, where 255 = full saturation)
     #[inline(always)]
-    pub fn shift_hue(&self, degrees: f32) -> Self {
-        let (h, s, v) = self.to_hsv();
-        Self::from_hsv((h + degrees) % 360.0, s, v)
+    pub fn adjust_saturation(&self, factor: u8) -> Self {
+        let (h, s, v) = self.to_hsv_u8();
+        let new_s = ((s as u16 * factor as u16) / 255) as u8;
+        Self::from_hsv(h, new_s, v)
     }
 
+    /// Shift hue by amount (0-255, wraps around)
     #[inline(always)]
-    pub fn to_hsv(&self) -> (f32, f32, f32) {
-        let r = self.r as f32 / 255.0;
-        let g = self.g as f32 / 255.0;
-        let b = self.b as f32 / 255.0;
+    pub fn shift_hue(&self, shift: u8) -> Self {
+        let (h, s, v) = self.to_hsv_u8();
+        let new_h = h.wrapping_add(shift);
+        Self::from_hsv(new_h, s, v)
+    }
 
-        let max = r.max(g).max(b);
-        let min = r.min(g).min(b);
+    /// Convert RGB to HSV (returns hue: 0-255, saturation: 0-255, value: 0-255)
+    #[inline(always)]
+    pub fn to_hsv_u8(&self) -> (u8, u8, u8) {
+        let max = self.r.max(self.g).max(self.b);
+        let min = self.r.min(self.g).min(self.b);
         let delta = max - min;
 
-        let h = if delta == 0.0 {
-            0.0
-        } else if max == r {
-            60.0 * (((g - b) / delta) % 6.0)
-        } else if max == g {
-            60.0 * (((b - r) / delta) + 2.0)
+        if delta == 0 {
+            return (0, 0, max);
+        }
+
+        let saturation = ((delta as u16 * 255) / max as u16) as u8;
+
+        // Calculate hue: map 0-360° to 0-255
+        // Each of 6 sectors = 255/6 ≈ 42.5, we use 256/6 for better precision
+        let hue = if max == self.r {
+            let diff = if self.g >= self.b {
+                ((self.g - self.b) as u32 * 256) / (delta as u32 * 6)
+            } else {
+                256 - (((self.b - self.g) as u32 * 256) / (delta as u32 * 6))
+            };
+            diff as u8
+        } else if max == self.g {
+            let diff = ((self.b as i16 - self.r as i16) as i32 * 256) / (delta as i32 * 6);
+            (85 + diff) as u8
         } else {
-            60.0 * (((r - g) / delta) + 4.0)
+            let diff = ((self.r as i16 - self.g as i16) as i32 * 256) / (delta as i32 * 6);
+            (171 + diff) as u8
         };
 
-        let s = if max == 0.0 { 0.0 } else { delta / max };
-        let v = max;
-
-        ((h + 360.0) % 360.0, s, v)
-    }
-
-    #[inline(always)]
-    pub fn gamma_correct(&self, gamma: f32) -> Self {
-        let correct = |channel: u8| {
-            let normalized = channel as f32 / 255.0;
-            let corrected = libm::powf(normalized, gamma);
-            (corrected * 255.0) as u8
-        };
-
-        Self {
-            r: correct(self.r),
-            g: correct(self.g),
-            b: correct(self.b),
-        }
-    }
-
-    #[inline(always)]
-    pub fn lerp(&self, other: &Self, t: f32) -> Self {
-        Self {
-            r: (self.r as f32 + (other.r as f32 - self.r as f32) * t) as u8,
-            g: (self.g as f32 + (other.g as f32 - self.g as f32) * t) as u8,
-            b: (self.b as f32 + (other.b as f32 - self.b as f32) * t) as u8,
-        }
+        (hue, saturation, max)
     }
 }
+
+// ============================================================================
+// LOOKUP TABLES
+// ============================================================================
+
+struct HsvLut {
+    data: [Pixel; 256 * 8 * 8],
+}
+
+impl HsvLut {
+    #[inline(always)]
+    fn get(&self, hue: u8, saturation: u8, value: u8) -> Pixel {
+        let sat_idx = (saturation >> 5) as usize;
+        let val_idx = (value >> 5) as usize;
+        let hue_idx = hue as usize;
+
+        let index = hue_idx * 64 + sat_idx * 8 + val_idx;
+        self.data[index]
+    }
+}
+
+static HSV_LUT: HsvLut = HsvLut {
+    data: generate_hsv_lut!(),
+};
+
+static GAMMA_22_LUT: [u8; 256] = generate_gamma_lut!();
 
 const _: () = assert!(core::mem::size_of::<Pixel>() == 3);

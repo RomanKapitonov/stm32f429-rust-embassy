@@ -1,6 +1,3 @@
-// glow
-// flicker
-
 use crate::effects::core::{
     pixel::Pixel,
     traits::{HueParameter, Modifier, Parameter},
@@ -8,17 +5,17 @@ use crate::effects::core::{
 
 pub struct Trail<DecayRate>
 where
-    DecayRate: Parameter<f32>,
+    DecayRate: Parameter<u8>,
 {
-    pub decay_rate: DecayRate,
+    pub decay_rate: DecayRate, // 0-255 (where 255 = no decay, 128 = 50% decay)
 }
 
 pub struct Sparkle<Chance, Hue, Sat, Intensity>
 where
     Chance: Parameter<u8>,
     Hue: HueParameter,
-    Sat: Parameter<f32>,
-    Intensity: Parameter<f32>,
+    Sat: Parameter<u8>,
+    Intensity: Parameter<u8>,
 {
     pub chance: Chance,
     pub hue: Hue,
@@ -29,10 +26,10 @@ where
 
 impl<DecayRate> Modifier for Trail<DecayRate>
 where
-    DecayRate: Parameter<f32>,
+    DecayRate: Parameter<u8>,
 {
     #[inline(always)]
-    fn modify(&mut self, buffer: &mut [Pixel], now: u64) {
+    fn modify(&mut self, buffer: &mut [Pixel], now: u32) {
         let decay = self.decay_rate.sample(now);
         for pixel in buffer.iter_mut() {
             *pixel = pixel.scale(decay);
@@ -44,11 +41,11 @@ impl<Chance, Hue, Sat, Intensity> Modifier for Sparkle<Chance, Hue, Sat, Intensi
 where
     Chance: Parameter<u8>,
     Hue: HueParameter,
-    Sat: Parameter<f32>,
-    Intensity: Parameter<f32>,
+    Sat: Parameter<u8>,
+    Intensity: Parameter<u8>,
 {
     #[inline(always)]
-    fn modify(&mut self, buffer: &mut [Pixel], now: u64) {
+    fn modify(&mut self, buffer: &mut [Pixel], now: u32) {
         let chance = self.chance.sample(now);
         let hue = self.hue.sample(now);
         let saturation = self.saturation.sample(now);

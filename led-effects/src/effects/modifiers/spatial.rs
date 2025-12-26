@@ -5,9 +5,9 @@ use crate::effects::core::{
 
 pub struct Blur<Strength>
 where
-    Strength: Parameter<f32>,
+    Strength: Parameter<u8>,
 {
-    pub strength: Strength, // 0.0 = no blur, 1.0 = maximum blur
+    pub strength: Strength, // 0-255 (where 255 = maximum blur)
 }
 
 pub struct Shift<Offset>
@@ -25,20 +25,21 @@ pub struct Reverse;
 
 impl<Strength> Modifier for Blur<Strength>
 where
-    Strength: Parameter<f32>,
+    Strength: Parameter<u8>,
 {
     #[inline(always)]
-    fn modify(&mut self, buffer: &mut [Pixel], now: u64) {
+    fn modify(&mut self, buffer: &mut [Pixel], now: u32) {
         if buffer.len() < 2 {
             return;
         }
 
         let strength = self.strength.sample(now);
+        let half_strength = strength / 2;
         let mut prev = buffer[0];
 
         for i in 1..buffer.len() {
             let current = buffer[i];
-            buffer[i] = current.lerp(&prev, strength * 0.5);
+            buffer[i] = current.lerp(&prev, half_strength);
             prev = current;
         }
     }
@@ -49,7 +50,7 @@ where
     Offset: Parameter<isize>,
 {
     #[inline(always)]
-    fn modify(&mut self, buffer: &mut [Pixel], now: u64) {
+    fn modify(&mut self, buffer: &mut [Pixel], now: u32) {
         let offset = self.offset.sample(now);
         let len = buffer.len();
 
@@ -69,7 +70,7 @@ where
 
 impl Modifier for Mirror {
     #[inline(always)]
-    fn modify(&mut self, buffer: &mut [Pixel], _now: u64) {
+    fn modify(&mut self, buffer: &mut [Pixel], _now: u32) {
         let len = buffer.len();
 
         for i in 0..self.center.min(len) {
@@ -83,7 +84,7 @@ impl Modifier for Mirror {
 
 impl Modifier for Reverse {
     #[inline(always)]
-    fn modify(&mut self, buffer: &mut [Pixel], _now: u64) {
+    fn modify(&mut self, buffer: &mut [Pixel], _now: u32) {
         buffer.reverse();
     }
 }

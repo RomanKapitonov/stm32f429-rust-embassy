@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "firmware",
     "led-effects",
+    "led-effects-macros",
 ]
 
 [workspace.package]

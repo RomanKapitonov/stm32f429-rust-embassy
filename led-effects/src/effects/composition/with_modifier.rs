@@ -10,13 +10,13 @@ pub struct WithModifier<G: Generator, M: Modifier> {
 
 impl<G: Generator, M: Modifier> Generator for WithModifier<G, M> {
     #[inline(always)]
-    fn generate(&mut self, buffer: &mut [Pixel], now: u64) {
+    fn generate(&mut self, buffer: &mut [Pixel], now: u32) {
         self.generator.generate(buffer, now);
         self.modifier.modify(buffer, now);
     }
 
     #[inline(always)]
-    fn is_alive(&self, now: u64) -> bool {
+    fn is_alive(&self, now: u32) -> bool {
         self.generator.is_alive(now)
     }
 }

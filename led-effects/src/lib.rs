@@ -30,7 +30,6 @@ pub use effects::{
     Min,
     Product,
     Sawtooth,
-    Scale,
     Sine,
     Square,
     Sum,
